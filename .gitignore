@@ -1,0 +1,56 @@
+# Python
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+
+venv/
+env/
+.venv/
+.env
+
+# Django
+
+*.log
+*.pot
+db.sqlite3
+db.sqlite3-journal
+
+# Environment variables (IMPORTANT)
+
+.env
+.env.*
+
+# Static & media (generated files)
+
+media/
+staticfiles/
+
+# VS Code
+
+.vscode/
+
+# OS junk
+
+.DS_Store
+Thumbs.db
+
+# Docker (optional)
+
+# Ignore local override files if you create them
+
+docker-compose.override.yml
+
+# Node (if you add frontend later)
+
+node_modules/
+dist/
+build/
+
+# Testing / cache
+
+.coverage
+htmlcov/
+.pytest_cache/
