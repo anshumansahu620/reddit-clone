@@ -54,3 +54,7 @@ build/
 .coverage
 htmlcov/
 .pytest_cache/
+
+
+migrations/
+

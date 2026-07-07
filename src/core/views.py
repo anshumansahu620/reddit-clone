@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny,IsAuthenticated
 from .serializers import AppUserRegisterSerializer
-from .models import User,Otp
+from .models import User,Otp,AppUser
 from django.core.mail import send_mail
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
@@ -117,3 +117,22 @@ class ResetPassword(APIView):
         return Response({'message': 'Password reset successful'}, status=200)
 
         
+#DELETE ACC 
+
+
+class DeleteUser(APIView):
+    permission_classes=[IsAuthenticated]
+    def delete(self,request):
+        user=request.user 
+
+        email=user.email
+
+        user.delete()
+        send_mail(
+            "Account deleted Successfully",
+            " If this wasn't you, please contact support immediately.",
+            "noreply@attendance.com",
+            [email],
+            fail_silently=False
+        )
+        return Response({"message":"sucessfully deleted your account"},status=400)

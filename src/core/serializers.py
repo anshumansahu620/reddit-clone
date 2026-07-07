@@ -1,8 +1,11 @@
 from rest_framework import serializers
-from .models import AppUser,Otp
-from django.contrib.auth.models import User
+from .models import AppUser, Otp
+from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
 from django.db import transaction
+from django.db.transaction import on_commit
+
+User = get_user_model()
 
 class AppUserRegisterSerializer(serializers.ModelSerializer):
     
@@ -10,40 +13,54 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(write_only=True)
     password = serializers.CharField(write_only=True)
     
-   
-    
     class Meta:
-        model=AppUser
-        fields=['username','password','email','avatar']
+        model = AppUser
+        fields = ['username', 'password', 'email', 'avatar']
+
+    def validate(self, data):
+        email = data.get('email')
+        username = data.get('username')
+
+        errors = {}
+
+        if User.objects.filter(email=email).exists():
+            errors['email'] = "Email already exists"
+
+        if User.objects.filter(username=username).exists():
+            errors['username'] = "Username already exists"
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return data
 
     @transaction.atomic
-    def create(self,validated_data):
-        password=validated_data.pop('password')
-        email=validated_data.pop('email')
-        username=validated_data.pop('username')
-        user=User.objects.create(email=email,username=username,password=password)
-        user.is_active=False
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        email = validated_data.pop('email')
+        username = validated_data.pop('username')
+
+        user = User.objects.create_user(
+            email=email,
+            username=username,
+            password=password
+        )
+        user.is_active = False
         user.save()
 
-        app_user=AppUser.objects.create(user=user,**validated_data)
+        app_user = AppUser.objects.create(user=user, **validated_data)
 
-        otp_code=Otp.generate_otp()
-        otp=Otp.objects.create(user=user,otp=otp_code)
-        send_mail(
-            
+        otp_code = Otp.generate_otp()
+        Otp.objects.create(user=user, otp=otp_code)
+
+        on_commit(lambda: send_mail(
             "Verify Your Account",
             f"Your OTP is {otp_code}",
             "noreply@attendance.com",
             [email],
             fail_silently=False
-        )
-        
+        ))
 
-        
-
-
-        
-        app_user.save()
         return app_user
     
 
