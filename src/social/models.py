@@ -1,7 +1,8 @@
 from django.db import models
 from core.models import AppUser
 import uuid
-# Create your models here.
+
+
 
 
 
@@ -37,6 +38,8 @@ class Post(models.Model):
 
     def __str__(self):
         return self.title
+
+
 
 
 
@@ -80,3 +83,13 @@ class Comment(models.Model):
 
     def __str__(self):
         return f"{self.comment_by} - {self.comment_text[:20]}"
+
+
+class Report(models.Model):
+    reported_by= models.ForeignKey(AppUser, on_delete=models.CASCADE)
+    post=models.ForeignKey(Post,null=True, on_delete=models.CASCADE)
+    comment=models.ForeignKey(Comment,null=True, on_delete=models.CASCADE)
+
+    created_at=models.DateTimeField(auto_now_add=True)
+
+

@@ -7,12 +7,12 @@ from django.db.transaction import on_commit
 
 User = get_user_model()
 
+
 class AppUserRegisterSerializer(serializers.ModelSerializer):
-    
     username = serializers.CharField(write_only=True)
     email = serializers.EmailField(write_only=True)
     password = serializers.CharField(write_only=True)
-    
+
     class Meta:
         model = AppUser
         fields = ['username', 'password', 'email', 'avatar']
@@ -40,6 +40,7 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
         email = validated_data.pop('email')
         username = validated_data.pop('username')
 
+        # Create auth user
         user = User.objects.create_user(
             email=email,
             username=username,
@@ -48,11 +49,14 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
         user.is_active = False
         user.save()
 
+        # Create AppUser
         app_user = AppUser.objects.create(user=user, **validated_data)
 
+        # Create OTP (linked to AppUser ✅)
         otp_code = Otp.generate_otp()
-        Otp.objects.create(user=user, otp=otp_code)
+        Otp.objects.create(user=app_user, otp=otp_code)
 
+        # Send email AFTER commit
         on_commit(lambda: send_mail(
             "Verify Your Account",
             f"Your OTP is {otp_code}",
@@ -62,6 +66,3 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
         ))
 
         return app_user
-    
-
-    
