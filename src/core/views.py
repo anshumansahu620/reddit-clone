@@ -1,8 +1,17 @@
-from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import AppUserRegisterSerializer
+from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from .serializers import (
+    AppUserRegisterSerializer,
+    VerifyOTPSerializer,
+    ResendOTPSerializer,
+    ResetPasswordSerializer,
+    DeleteAccountSerializer,
+)
 from .models import Otp, AppUser
 from django.contrib.auth import get_user_model
 from django.core.mail import send_mail
@@ -11,12 +20,70 @@ from django.core.exceptions import ValidationError
 
 User = get_user_model()
 
+REGISTER_BODY = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['username', 'email', 'password'],
+    properties={
+        'username': openapi.Schema(type=openapi.TYPE_STRING, example='john_doe'),
+        'email': openapi.Schema(type=openapi.TYPE_STRING, format='email', example='john@example.com'),
+        'password': openapi.Schema(type=openapi.TYPE_STRING, example='StrongPass123!'),
+        'avatar': openapi.Schema(type=openapi.TYPE_STRING, format='uri', example='https://example.com/a.png'),
+    },
+)
 
-class RegisterView(APIView):
+VERIFY_OTP_BODY = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['email', 'otp'],
+    properties={
+        'email': openapi.Schema(type=openapi.TYPE_STRING, format='email', example='john@example.com'),
+        'otp': openapi.Schema(type=openapi.TYPE_INTEGER, example=123456),
+    },
+)
+
+RESEND_OTP_BODY = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['email'],
+    properties={
+        'email': openapi.Schema(type=openapi.TYPE_STRING, format='email', example='john@example.com'),
+    },
+)
+
+RESET_PASSWORD_BODY = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['password', 'new_password'],
+    properties={
+        'password': openapi.Schema(type=openapi.TYPE_STRING, example='OldPass123!'),
+        'new_password': openapi.Schema(type=openapi.TYPE_STRING, example='NewPass123!'),
+    },
+)
+
+DELETE_ACCOUNT_BODY = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['password'],
+    properties={
+        'password': openapi.Schema(
+            type=openapi.TYPE_STRING,
+            example='YourPassword123!',
+            description='Current account password to confirm deletion',
+        ),
+    },
+)
+
+
+class RegisterView(GenericAPIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = AppUserRegisterSerializer
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
+    @swagger_auto_schema(
+        request_body=REGISTER_BODY,
+        consumes=['application/json'],
+        produces=['application/json'],
+        responses={201: openapi.Response('User created')},
+    )
     def post(self, request):
-        serializer = AppUserRegisterSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             app_user = serializer.save()
             return Response({
@@ -27,12 +94,25 @@ class RegisterView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class VerifyOTP(APIView):
+class VerifyOTP(GenericAPIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = VerifyOTPSerializer
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
+    @swagger_auto_schema(
+        request_body=VERIFY_OTP_BODY,
+        consumes=['application/json'],
+        produces=['application/json'],
+        responses={200: openapi.Response('Account verified')},
+    )
     def post(self, request):
-        email = request.data.get("email")
-        otp = request.data.get("otp")
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+        otp = serializer.validated_data["otp"]
 
         user = User.objects.filter(email=email).first()
         if not user:
@@ -50,25 +130,33 @@ class VerifyOTP(APIView):
         if otp_obj.is_expired():
             return Response({"error": "OTP expired"}, status=400)
 
-        # Activate user
         user.is_active = True
         user.save()
 
-        # Mark OTP verified ✅ FIXED
         otp_obj.verified = True
         otp_obj.save()
 
         return Response({"message": "Account verified"}, status=200)
 
 
-class ResendOtp(APIView):
+class ResendOtp(GenericAPIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
+    serializer_class = ResendOTPSerializer
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
+    @swagger_auto_schema(
+        request_body=RESEND_OTP_BODY,
+        consumes=['application/json'],
+        produces=['application/json'],
+        responses={200: openapi.Response('OTP sent')},
+    )
     def post(self, request):
-        email = request.data.get('email')
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if not email:
-            return Response({'error': 'Email not provided'}, status=400)
+        email = serializer.validated_data["email"]
 
         try:
             user = User.objects.get(email=email)
@@ -78,10 +166,8 @@ class ResendOtp(APIView):
         except AppUser.DoesNotExist:
             return Response({"error": "AppUser not found"}, status=404)
 
-        # Delete old OTPs
         Otp.objects.filter(user=app_user).delete()
 
-        # Create new OTP
         otp_code = Otp.generate_otp()
         Otp.objects.create(user=app_user, otp=otp_code)
 
@@ -96,16 +182,25 @@ class ResendOtp(APIView):
         return Response({'message': 'OTP sent successfully'}, status=200)
 
 
-class ResetPassword(APIView):
+class ResetPassword(GenericAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = ResetPasswordSerializer
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
 
+    @swagger_auto_schema(
+        request_body=RESET_PASSWORD_BODY,
+        consumes=['application/json'],
+        produces=['application/json'],
+        responses={200: openapi.Response('Password reset')},
+    )
     def post(self, request):
-        user = request.user
-        password = request.data.get('password')
-        new_password = request.data.get('new_password')
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if not password or not new_password:
-            return Response({'error': 'Both passwords are required'}, status=400)
+        user = request.user
+        password = serializer.validated_data["password"]
+        new_password = serializer.validated_data["new_password"]
 
         if not user.check_password(password):
             return Response({'error': 'Wrong password'}, status=400)
@@ -129,13 +224,37 @@ class ResetPassword(APIView):
         return Response({'message': 'Password reset successful'}, status=200)
 
 
-class DeleteUser(APIView):
+class DeleteUser(GenericAPIView):
+    """
+    Delete the authenticated user's account.
+    Uses POST so Swagger UI can accept a JSON body (DELETE bodies are often hidden).
+    """
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
+    serializer_class = DeleteAccountSerializer
 
-    def delete(self, request):
+    @swagger_auto_schema(
+        operation_description="Delete your account. Requires JWT + password confirmation JSON body.",
+        request_body=DELETE_ACCOUNT_BODY,
+        consumes=['application/json'],
+        produces=['application/json'],
+        security=[{'Bearer': []}],
+        responses={
+            200: openapi.Response('Account deleted'),
+            400: openapi.Response('Wrong password'),
+            401: openapi.Response('Unauthorized'),
+        },
+    )
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         user = request.user
-        email = user.email
+        if not user.check_password(serializer.validated_data['password']):
+            return Response({'error': 'Wrong password'}, status=status.HTTP_400_BAD_REQUEST)
 
+        email = user.email
         user.delete()
 
         send_mail(

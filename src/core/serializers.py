@@ -52,7 +52,7 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
         # Create AppUser
         app_user = AppUser.objects.create(user=user, **validated_data)
 
-        # Create OTP (linked to AppUser ✅)
+        # Create OTP (linked to AppUser )
         otp_code = Otp.generate_otp()
         Otp.objects.create(user=app_user, otp=otp_code)
 
@@ -66,3 +66,21 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
         ))
 
         return app_user
+
+
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.IntegerField()
+
+
+class ResendOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    password = serializers.CharField()
+    new_password = serializers.CharField()
+
+
+class DeleteAccountSerializer(serializers.Serializer):
+    password = serializers.CharField()
