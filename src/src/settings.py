@@ -92,6 +92,22 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.FormParser',
         'rest_framework.parsers.MultiPartParser',
     ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+
+        'anon':'1000/day',
+        
+        'login':'10/hour'
+
+
+
+
+        
+    }
+
 }
 
 SWAGGER_SETTINGS = {

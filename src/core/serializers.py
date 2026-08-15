@@ -5,6 +5,7 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.db.transaction import on_commit
 
+
 User = get_user_model()
 
 
@@ -49,14 +50,14 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
         user.is_active = False
         user.save()
 
-        # Create AppUser
+        
         app_user = AppUser.objects.create(user=user, **validated_data)
 
-        # Create OTP (linked to AppUser )
+        
         otp_code = Otp.generate_otp()
         Otp.objects.create(user=app_user, otp=otp_code)
 
-        # Send email AFTER commit
+        
         on_commit(lambda: send_mail(
             "Verify Your Account",
             f"Your OTP is {otp_code}",
@@ -69,6 +70,8 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
 
 
 class VerifyOTPSerializer(serializers.Serializer):
+
+
     email = serializers.EmailField()
     otp = serializers.IntegerField()
 
