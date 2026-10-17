@@ -174,7 +174,7 @@ class ResendOtp(GenericAPIView):
         send_mail(
             "Verify Your Account",
             f"Your OTP is {otp_code}",
-            "noreply@attendance.com",
+            None,
             [email],
             fail_silently=False
         )
@@ -216,7 +216,7 @@ class ResetPassword(GenericAPIView):
         send_mail(
             "Password Changed Successfully",
             "Your password has been changed. If this wasn't you, contact support.",
-            "noreply@attendance.com",
+            None,
             [user.email],
             fail_silently=False
         )
@@ -260,7 +260,7 @@ class DeleteUser(GenericAPIView):
         send_mail(
             "Account Deleted",
             "Your account has been deleted. If this wasn't you, contact support.",
-            "noreply@attendance.com",
+            None,
             [email],
             fail_silently=False
         )

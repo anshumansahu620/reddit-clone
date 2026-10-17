@@ -61,7 +61,7 @@ class AppUserRegisterSerializer(serializers.ModelSerializer):
         on_commit(lambda: send_mail(
             "Verify Your Account",
             f"Your OTP is {otp_code}",
-            "noreply@attendance.com",
+            None,
             [email],
             fail_silently=False
         ))
