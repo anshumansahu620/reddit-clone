@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 from dotenv import load_dotenv
 import os
+import urllib.parse
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,7 +27,7 @@ load_dotenv(BASE_DIR / '.env')
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-mc#1w64d+8zrayss(xwxie(b4$d%31r0$5-#feltqd*04yd+r%'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-mc#1w64d+8zrayss(xwxie(b4$d%31r0$5-#feltqd*04yd+r%')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', '1') in ('1', 'True', 'true')
@@ -36,6 +37,10 @@ if DEBUG and '*' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS = list(set(ALLOWED_HOSTS + ['localhost', '127.0.0.1', 'testserver', 'django_app']))
 if os.getenv('ALLOWED_HOSTS') == '*':
     ALLOWED_HOSTS = ['*']
+
+render_external_hostname = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if render_external_hostname and render_external_hostname not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_external_hostname)
 
 
 # Application definition
@@ -132,28 +137,54 @@ SWAGGER_SETTINGS = {
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB") or os.getenv("DB_NAME"),
-        "USER": os.getenv("POSTGRES_USER") or os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST", "localhost"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    parsed_db_url = urllib.parse.urlparse(database_url)
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": urllib.parse.unquote(parsed_db_url.path.lstrip("/")),
+            "USER": urllib.parse.unquote(parsed_db_url.username or ""),
+            "PASSWORD": urllib.parse.unquote(parsed_db_url.password or ""),
+            "HOST": parsed_db_url.hostname or "localhost",
+            "PORT": str(parsed_db_url.port or 5432),
+        }
     }
-}
+    query_params = urllib.parse.parse_qs(parsed_db_url.query)
+    if "sslmode" in query_params:
+        DATABASES["default"]["OPTIONS"] = {"sslmode": query_params["sslmode"][0]}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB") or os.getenv("DB_NAME"),
+            "USER": os.getenv("POSTGRES_USER") or os.getenv("DB_USER"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD") or os.getenv("DB_PASSWORD"),
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
+    }
 
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1"),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-        "KEY_PREFIX": "reddit",
-        "TIMEOUT": int(os.getenv("RECENT_POSTS_CACHE_TTL", "60")),
+redis_url = os.getenv("REDIS_URL")
+if redis_url:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": redis_url,
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            },
+            "KEY_PREFIX": "reddit",
+            "TIMEOUT": int(os.getenv("RECENT_POSTS_CACHE_TTL", "60")),
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "reddit-locmem-cache",
+        }
+    }
 
 RECENT_POSTS_CACHE_KEY = "recent_posts_last_hour"
 RECENT_POSTS_CACHE_TTL = int(os.getenv("RECENT_POSTS_CACHE_TTL", "60"))
